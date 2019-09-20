@@ -1,0 +1,35 @@
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+
+public class JobWriter {
+	
+	private FileWriter errorWriter;
+	
+	public JobWriter(String name, String outputFolder) throws Exception {
+		String time = System.currentTimeMillis()+"";
+		File file = new File(outputFolder + System.getProperty("file.separator") + name + "-ERROR-" + time + ".txt");
+		if(!file.exists()) {
+			file.createNewFile();
+		}
+		this.errorWriter = new FileWriter(file);
+	}
+
+	public void append(Object txt) {
+		try {
+			errorWriter.append(String.valueOf(txt) + "\n");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+
+	public void flush() {
+		try {
+			errorWriter.flush();
+			errorWriter.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+}

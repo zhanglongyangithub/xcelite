@@ -1,0 +1,378 @@
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.yxy.senquence.common.keygen.DefaultKeyGenerator;
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+
+public class ExcelUtil {
+
+    private final static String excel2003L = ".xls";    //2003- 版本的excel
+    private final static String excel2007U = ".xlsx";   //2007+ 版本的excel
+    static SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd");  //日期格式化
+    private static DefaultKeyGenerator keyGenerator = new DefaultKeyGenerator();
+
+
+
+    private static final BiMap<String, Integer> prematureBirthM = HashBiMap.create();
+    static {
+        prematureBirthM.put("正常", 0);
+        prematureBirthM.put("早产", 1);
+        prematureBirthM.put("矫正", -1);
+    }
+
+    private static final BiMap<String, Integer> pubStatusM = HashBiMap.create();
+    static {
+        pubStatusM.put("发布可用", 1);
+        pubStatusM.put("禁用", 0);
+    }
+
+
+    public static void main(String[] args) throws Exception {
+        ExcelUtil util = new ExcelUtil();
+        util.readYnr();
+//        util.readGdr();
+//        util.readQt();
+//        util.readTgwz();
+    }
+
+    private void readYnr() throws Exception{
+
+
+        List<List<Object>> list = getListByExcel(0, new FileInputStream(new File("D:/xg.xlsx")), "xg.xlsx");
+        JobWriter jobWriter = new JobWriter("ynr", "D://");
+        for (List<Object> objectList : list) {
+            writeYnr(objectList, jobWriter);
+        }
+        jobWriter.flush();
+        System.out.println();
+    }
+
+
+    private void writeYnr(List<Object> objectList, JobWriter jobWriter) {
+        String id = objectList.get(0).toString();
+        String _title = objectList.get(1).toString();
+        String _prematureBirth = objectList.get(2).toString();
+        String _days = objectList.get(4).toString();
+        String _sort = objectList.get(5).toString();
+        String _status = objectList.get(6).toString();
+        try {
+
+
+
+            String title =   _title.replaceAll("\\s*|\t|\r|\n", "");
+            Integer prematureBirth = prematureBirthM.get(_prematureBirth);
+            Integer status = pubStatusM.get(_status);
+            String id1 = keyGenerator.generateKey().toString();
+
+            String sql = "insert into knowledge_biz (id,knowledge_id, cfg_code, cfg_column, cfg_name, cfg_type, cfg_value, is_del , create_at, create_by, create_name,  is_show) values (" +
+                    "'"+id1+"'," +"'"+id+"'," +"'KNWL'," +"'knType'," +"'知识分类,固定日知识:0；月龄日知识：1；其他知识:2'," +"'number'," +"'1'," +"0," +"'"+System.currentTimeMillis()+"'," +"'1'," +"'admin',"  +"'true'" +
+                    "),"+
+                    "(" +
+                    "'"+keyGenerator.generateKey().toString()+"'," +"'"+id+"'," +"'KNWL'," +"'monthAgeDay'," +"'月龄日（天）'," +"'number'," +"'"+_days+"'," +"0," +"'"+System.currentTimeMillis()+"'," +"'1'," +"'admin',"  +"'true'" +
+                    ");"
+                    ;
+            String sql2 = "update knowledge set title = '"+title+"', premature_birth="+prematureBirth+", sort = " + _sort +", status="+status+" where id='"+id+"';";
+            jobWriter.append(sql);
+            jobWriter.append(sql2);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void readGdr() throws Exception{
+        ExcelUtil util = new ExcelUtil();
+
+        List<List<Object>> list = getListByExcel(1, new FileInputStream(new File("D:/xg.xlsx")), "xg.xlsx");
+        JobWriter jobWriter = new JobWriter("gdr", "D://");
+        for (List<Object> objectList : list) {
+            util.writeGdr(objectList, jobWriter);
+        }
+        jobWriter.flush();
+        System.out.println();
+    }
+
+    private void writeGdr(List<Object> objectList, JobWriter jobWriter) {
+        String id = objectList.get(0).toString();
+        String _title = objectList.get(1).toString();
+        String date = objectList.get(2).toString();
+        String _status = objectList.get(4).toString();
+
+
+        try {
+            long time = sdf.parse(date).getTime();
+
+            String title =   _title.replaceAll("\\s*|\t|\r|\n", "");
+            Integer status = pubStatusM.get(_status);
+
+            String sql = "insert into knowledge_biz (id,knowledge_id, cfg_code, cfg_column, cfg_name, cfg_type, cfg_value, is_del , create_at, create_by, create_name,  is_show) values (" +
+                    "'" + keyGenerator.generateKey().toString() + "'," + "'" + id + "'," + "'KNWL'," + "'knType'," + "'知识分类,固定日知识:0；月龄日知识：1；其他知识:2'," + "'number'," + "'0'," + "0," + "'" + System.currentTimeMillis() + "'," + "'1'," + "'admin'," + "'true'" +
+                    ");";
+            String sql2 = "update knowledge set title='"+title+"', status='"+status+"', auto_pub_time = " + time + " where id='" + id + "';";
+            jobWriter.append(sql);
+            jobWriter.append(sql2);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void readQt() throws Exception{
+        ExcelUtil util = new ExcelUtil();
+
+        List<List<Object>> list = getListByExcel(2, new FileInputStream(new File("D:/xg.xlsx")), "xg.xlsx");
+        JobWriter jobWriter = new JobWriter("qt", "D://");
+        for (List<Object> objectList : list) {
+            util.writeQt(objectList, jobWriter);
+        }
+        jobWriter.flush();
+        System.out.println();
+    }
+
+    private void writeQt(List<Object> objectList, JobWriter jobWriter) {
+        String id = objectList.get(0).toString();
+        String _title = objectList.get(1).toString();
+        String _status = objectList.get(3).toString();
+        try {
+
+
+            String title =   _title.replaceAll("\\s*|\t|\r|\n", "");
+            Integer status = pubStatusM.get(_status);
+            String sql = "insert into knowledge_biz (id,knowledge_id, cfg_code, cfg_column, cfg_name, cfg_type, cfg_value, is_del , create_at, create_by, create_name,  is_show) values (" +
+                    "'" + keyGenerator.generateKey().toString() + "'," + "'" + id + "'," + "'KNWL'," + "'knType'," + "'知识分类,固定日知识:0；月龄日知识：1；其他知识:2'," + "'number'," + "'2'," + "0," + "'" + System.currentTimeMillis() + "'," + "'1'," + "'admin'," + "'true'" +
+                    ");";
+            String sql2 = "update knowledge set title = '" + title + "', status='"+status+"' where id='" + id + "';";
+            jobWriter.append(sql);
+            jobWriter.append(sql2);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+        /**
+         * 描述：获取IO流中的数据，组装成List<List<Object>>对象
+         *
+         * @param in,fileName
+         * @return
+         */
+        public static List<List<Object>> getListByExcel (Integer sheetNo, InputStream in, String fileName) throws Exception {
+            List<List<Object>> list = null;
+
+            //创建Excel工作薄
+            Workbook work = getWorkbook(in, fileName);
+            if (null == work) {
+                throw new Exception("创建Excel工作薄为空！");
+            }
+            Sheet sheet = null;
+            Row row = null;
+            Cell cell = null;
+
+            list = new ArrayList<List<Object>>();
+            //遍历Excel中所有的sheet
+            for (int i = sheetNo; i < sheetNo+1; i++) {
+                sheet = work.getSheetAt(i);
+                if (sheet == null) {
+                    continue;
+                }
+
+                //遍历当前sheet中的所有行
+                for (int j = sheet.getFirstRowNum(); j <= sheet.getLastRowNum(); j++) {
+                    row = sheet.getRow(j);
+                    if (row == null || row.getFirstCellNum() == j) {
+                        continue;
+                    }
+
+                    //遍历所有的列
+                    List<Object> li = new ArrayList<Object>();
+                    boolean valid = true;
+                    for (int y = 0; y < row.getLastCellNum(); y++) {
+                        cell = row.getCell(y);
+                        if (y == 0 && (cell == null || getCellValue(cell) == null || getCellValue(cell).equals(""))) {
+                            valid = false;
+                            break;
+                        } else {
+                            Object object = null;
+                            if (cell != null) {
+                                object = getCellValue(cell);
+                            }
+                            li.add(object);
+                        }
+                    }
+                    if (valid) {
+                        list.add(li);
+                    }
+
+                }
+            }
+            in.close();
+            return list;
+        }
+
+        /**
+         * 描述：根据文件后缀，自适应上传文件的版本
+         *
+         * @param inStr,fileName
+         * @return
+         * @throws Exception
+         */
+        public static Workbook getWorkbook (InputStream inStr, String fileName) throws Exception {
+            Workbook wb = null;
+            String fileType = fileName.substring(fileName.lastIndexOf("."));
+            if (excel2003L.equals(fileType)) {
+                wb = new HSSFWorkbook(inStr);  //2003-
+            } else if (excel2007U.equals(fileType)) {
+                wb = new XSSFWorkbook(inStr);  //2007+
+            } else {
+                throw new Exception("解析的文件格式有误！");
+            }
+            return wb;
+        }
+
+        /**
+         * 描述：对表格中数值进行格式化
+         *
+         * @param cell
+         * @return
+         */
+        @SuppressWarnings("deprecation")
+        public static Object getCellValue (Cell cell){
+            Object value = null;
+            SimpleDateFormat sdf = new SimpleDateFormat("yyy-MM-dd");  //日期格式化
+            DecimalFormat dfDouble = new DecimalFormat("0.00");  //格式化数字
+            DecimalFormat dfInteger = new DecimalFormat("0");  //格式化数字
+
+            switch (cell.getCellType()) {
+                case Cell.CELL_TYPE_STRING:
+                    value = cell.getRichStringCellValue().getString();
+                    break;
+                case Cell.CELL_TYPE_NUMERIC:
+                    String string = cell.getCellStyle().getDataFormatString();
+                    if ("General".equals(cell.getCellStyle().getDataFormatString())) {
+                        value = dfInteger.format(cell.getNumericCellValue());
+                    } else if ("m/d/yy".equals(cell.getCellStyle().getDataFormatString())) {
+                        value = sdf.format(cell.getDateCellValue());
+                    } else if ("0".equals(cell.getCellStyle().getDataFormatString())) {
+                        value = dfInteger.format(cell.getNumericCellValue());
+                    } else if ("0.00".equals(cell.getCellStyle().getDataFormatString())) {
+                        value = dfDouble.format(cell.getNumericCellValue());
+                    } else {
+                        value = dfInteger.format(cell.getNumericCellValue());
+                    }
+                    break;
+                case Cell.CELL_TYPE_BOOLEAN:
+                    value = cell.getBooleanCellValue();
+                    break;
+                case Cell.CELL_TYPE_BLANK:
+                    value = "";
+                    break;
+                default:
+                    break;
+            }
+            return value;
+        }
+
+
+        /**
+         * 拼装单个obj
+         *
+         * @param obj
+         * @param row
+         * @return
+         * @throws Exception
+         */
+        private static Map<String, String> dataObj (Object obj, HSSFRow row) throws Exception {
+            Class<?> rowClazz = obj.getClass();
+            Field[] fields = null;
+//            FieldUtils.getAllFields(rowClazz);
+            if (fields == null || fields.length < 1) {
+                return null;
+            }
+
+            // 容器
+            Map<String, String> map = new HashMap<String, String>();
+            // 注意excel表格字段顺序要和obj字段顺序对齐 （如果有多余字段请另作特殊下标对应处理）
+            for (int j = 1; j < fields.length; j++) {
+
+                map.put(fields[j].getName(), getVal(row.getCell(j - 1)).trim());
+                System.out.println("第几列" + j + "--------" + fields[j].getName() + "-----" + getVal(row.getCell(j - 1)).trim());
+            }
+            return map;
+        }
+
+        @SuppressWarnings("resource")
+        public static List<Map<String, String>> importExcel (MultipartFile file, Object obj) throws Exception {
+
+            // 装载流
+            POIFSFileSystem fs = new POIFSFileSystem(file.getInputStream());
+            HSSFWorkbook hw = new HSSFWorkbook(fs);
+
+            // 获取第一个sheet页
+            HSSFSheet sheet = hw.getSheetAt(0);
+
+            // 容器
+            List<Map<String, String>> ret = new ArrayList<Map<String, String>>();
+            System.out.println("导入数据的行数：" + sheet.getLastRowNum());
+            // 遍历行 从下标第一行开始（去除标题）
+            for (int i = 1; i < sheet.getLastRowNum() + 1; i++) {
+
+                HSSFRow row = sheet.getRow(i);
+
+                if (row != null) {
+                    // 装载obj
+                    ret.add(dataObj(obj, row));
+                }
+            }
+            return ret;
+        }
+
+        /**
+         * 处理val（暂时只处理string和number，可以自己添加自己需要的val类型）
+         * CELL_TYPE_NUMERIC = 0
+         * CELL_TYPE_STRING = 1
+         * CELL_TYPE_BLANK = 3
+         * CELL_TYPE_BOOLEAN = 4
+         * CELL_TYPE_ERROR = 5
+         *
+         * @param hssfCell
+         * @return
+         */
+        @SuppressWarnings("deprecation")
+        public static String getVal (HSSFCell hssfCell){
+            try {
+                if (hssfCell.getCellType() == HSSFCell.CELL_TYPE_STRING) {
+                    return hssfCell.getStringCellValue();
+                }
+                if (hssfCell.getCellType() == HSSFCell.CELL_TYPE_NUMERIC) {
+                    return String.valueOf(hssfCell.getNumericCellValue());
+                }
+                if (hssfCell.getCellType() == HSSFCell.CELL_TYPE_BLANK) {
+                    return String.valueOf(hssfCell.getNumericCellValue());
+                }
+            } catch (Exception e) {
+                e.getMessage();
+            }
+            return "NULL";
+        }
+    }
